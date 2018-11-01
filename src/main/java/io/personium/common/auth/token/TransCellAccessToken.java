@@ -62,20 +62,18 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
-import net.oauth.signature.pem.PEMReader;
-import net.oauth.signature.pem.PKCS1EncodedKeySpec;
-
 import org.apache.commons.lang.CharEncoding;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Attr;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import io.personium.common.utils.PersoniumCoreUtils;
+import net.oauth.signature.pem.PEMReader;
+import net.oauth.signature.pem.PKCS1EncodedKeySpec;
 
 /**
  * TransCellのAccessTokenを扱うクラス.
@@ -308,10 +306,12 @@ public final class TransCellAccessToken extends AbstractOAuth2Token implements I
         Element attribute = doc.createElement("Attribute");
         for (Role role : this.roleList) {
             Element attrValue = doc.createElement("AttributeValue");
-            Attr attr = doc.createAttributeNS("http://www.w3.org/2001/XMLSchema-instance", "type");
-            attr.setPrefix("xsi");
-            attr.setValue("string");
-            attrValue.setAttributeNodeNS(attr);
+            // Comment out for OpenJDK-11 support.
+            // If it is OpenJDK-11, it will result in an error in checking the certificate.
+//            Attr attr = doc.createAttributeNS("http://www.w3.org/2001/XMLSchema-instance", "type");
+//            attr.setPrefix("xsi");
+//            attr.setValue("string");
+//            attrValue.setAttributeNodeNS(attr);
             attrValue.setTextContent(role.schemeCreateUrlForTranceCellToken(this.issuer));
             attribute.appendChild(attrValue);
         }
