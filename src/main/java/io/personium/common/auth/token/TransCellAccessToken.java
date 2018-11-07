@@ -21,6 +21,8 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
@@ -40,6 +42,7 @@ import java.util.UUID;
 import javax.naming.InvalidNameException;
 import javax.naming.ldap.LdapName;
 import javax.naming.ldap.Rdn;
+import javax.ws.rs.core.UriBuilder;
 import javax.xml.crypto.KeySelectorException;
 import javax.xml.crypto.MarshalException;
 import javax.xml.crypto.dsig.CanonicalizationMethod;
@@ -66,6 +69,7 @@ import org.apache.commons.lang.CharEncoding;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.DOMException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -415,7 +419,13 @@ public final class TransCellAccessToken extends AbstractOAuth2Token implements I
             // 署名の有効性を確認する。以下の例外はTokenDsigException（署名検証エラー）
             // Create a DOMValidateContext and specify a KeySelector
             // and document context.
-            X509KeySelector x509KeySelector = new X509KeySelector(issuer.getTextContent());
+            String issuerStr;
+            try {
+                issuerStr = convertFqdnBaseToPathBase(issuer.getTextContent());
+            } catch (DOMException | URISyntaxException e) {
+                throw new TokenDsigException("Issuer is not URI.");
+            }
+            X509KeySelector x509KeySelector = new X509KeySelector(issuerStr);
             DOMValidateContext valContext = new DOMValidateContext(x509KeySelector, signatureElement);
 
             // Unmarshal the XMLSignature.
@@ -486,6 +496,32 @@ public final class TransCellAccessToken extends AbstractOAuth2Token implements I
         } catch (IOException e) {
             throw new TokenParseException(e.getMessage(), e);
         }
+    }
+
+    /**
+     * "https://{cellname}.{domain}/..." to "https://{domain}/{cellname}/...".
+     * @param sourceUrl Source url
+     * @return Converted url
+     * @throws URISyntaxException Source url is not URI
+     */
+    private static String convertFqdnBaseToPathBase(String sourceUrl) throws URISyntaxException {
+        String convertedUrl = sourceUrl;
+        URI uri = new URI(sourceUrl);
+        String configFqdn = PersoniumCoreUtils.getFQDN();
+        if (configFqdn.equals(uri.getHost())) {
+            // sourceUrl is "https://{domain}/..."
+            return convertedUrl;
+        }
+
+        String cellName = uri.getHost().split("\\.")[0];
+        StringBuilder pathBuilder = new StringBuilder();
+        pathBuilder.append("/").append(cellName).append(uri.getPath());
+
+        UriBuilder uriBuilder = UriBuilder.fromUri(uri);
+        uriBuilder.host(configFqdn);
+        uriBuilder.replacePath(pathBuilder.toString());
+        convertedUrl = uriBuilder.build().toString();
+        return convertedUrl;
     }
 
     @Override
